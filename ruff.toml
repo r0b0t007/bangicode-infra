@@ -1,0 +1,7 @@
+# Same style as the Frappe apps.
+line-length = 110
+target-version = "py314"
+
+[format]
+indent-style = "tab"
+quote-style = "double"

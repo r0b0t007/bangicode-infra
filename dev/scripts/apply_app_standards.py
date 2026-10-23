@@ -16,53 +16,51 @@ ERPNEXT_RANGE = ">=16.52.0,<17.0.0"
 
 # required_apps per ADR 0001. Generic apps never list each other or the tenant app.
 APPS = {
-    "morocco_localization": {"requires": ["erpnext"], "kind": "generic"},
-    "trade_import": {"requires": ["erpnext"], "kind": "generic"},
-    "bangicode_brand": {"requires": [], "kind": "generic"},
-    "marone_custom": {
-        "requires": [
-            "erpnext",
-            "morocco_localization",
-            "trade_import",
-            "bangicode_brand",
-        ],
-        "kind": "tenant",
-    },
+	"morocco_localization": {"requires": ["erpnext"], "kind": "generic"},
+	"trade_import": {"requires": ["erpnext"], "kind": "generic"},
+	"bangicode_brand": {"requires": [], "kind": "generic"},
+	"marone_custom": {
+		"requires": [
+			"erpnext",
+			"morocco_localization",
+			"trade_import",
+			"bangicode_brand",
+		],
+		"kind": "tenant",
+	},
 }
 
 APPS_DIR = Path(__file__).resolve().parents[3] / "apps"
 
 
 def write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8", newline="\n")
+	path.parent.mkdir(parents=True, exist_ok=True)
+	path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def set_required_apps(app: str, requires: list[str]) -> None:
-    hooks = APPS_DIR / app / app / "hooks.py"
-    text = hooks.read_text(encoding="utf-8")
-    line = f"required_apps = {json.dumps(requires)}"
-    text = re.sub(r"^#? ?required_apps = .*$", line, text, count=1, flags=re.M)
-    write(hooks, text)
+	hooks = APPS_DIR / app / app / "hooks.py"
+	text = hooks.read_text(encoding="utf-8")
+	line = f"required_apps = {json.dumps(requires)}"
+	text = re.sub(r"^#? ?required_apps = .*$", line, text, count=1, flags=re.M)
+	write(hooks, text)
 
 
 def set_frappe_dependencies(app: str, requires: list[str]) -> None:
-    pyproject = APPS_DIR / app / "pyproject.toml"
-    text = pyproject.read_text(encoding="utf-8")
-    text = re.sub(
-        r"\n\[tool\.bench\.frappe-dependencies\]\n(?:[^\[\n].*\n)*", "\n", text
-    )
-    block = f'\n[tool.bench.frappe-dependencies]\nfrappe = "{FRAPPE_RANGE}"\n'
-    if "erpnext" in requires:
-        block += f'erpnext = "{ERPNEXT_RANGE}"\n'
-    text = text.replace("\n[build-system]", block + "\n[build-system]", 1)
-    write(pyproject, text)
+	pyproject = APPS_DIR / app / "pyproject.toml"
+	text = pyproject.read_text(encoding="utf-8")
+	text = re.sub(r"\n\[tool\.bench\.frappe-dependencies\]\n(?:[^\[\n].*\n)*", "\n", text)
+	block = f'\n[tool.bench.frappe-dependencies]\nfrappe = "{FRAPPE_RANGE}"\n'
+	if "erpnext" in requires:
+		block += f'erpnext = "{ERPNEXT_RANGE}"\n'
+	text = text.replace("\n[build-system]", block + "\n[build-system]", 1)
+	write(pyproject, text)
 
 
 def ci_workflow(app: str, requires: list[str]) -> str:
-    private_deps = [a for a in requires if a in APPS]
-    checkout_deps = "".join(
-        f"""
+	private_deps = [a for a in requires if a in APPS]
+	checkout_deps = "".join(
+		f"""
       - name: Checkout {dep}
         uses: actions/checkout@v6
         with:
@@ -70,18 +68,15 @@ def ci_workflow(app: str, requires: list[str]) -> str:
           path: apps/{dep}
           token: ${{{{ secrets.APPS_READ_TOKEN }}}}
 """
-        for dep in private_deps
-    )
-    get_erpnext = (
-        f"          bench get-app --branch {FRAPPE_BRANCH} erpnext\n"
-        if "erpnext" in requires
-        else ""
-    )
-    get_deps = "".join(
-        f"          bench get-app {dep} $GITHUB_WORKSPACE/apps/{dep}\n"
-        for dep in private_deps
-    )
-    return f"""name: CI
+		for dep in private_deps
+	)
+	get_erpnext = (
+		f"          bench get-app --branch {FRAPPE_BRANCH} erpnext\n" if "erpnext" in requires else ""
+	)
+	get_deps = "".join(
+		f"          bench get-app {dep} $GITHUB_WORKSPACE/apps/{dep}\n" for dep in private_deps
+	)
+	return f"""name: CI
 
 on:
   push:
@@ -178,7 +173,7 @@ updates:
 
 
 def smoke_test(app: str, requires: list[str]) -> str:
-    return f'''import frappe
+	return f'''import frappe
 from frappe.tests import IntegrationTestCase
 
 
@@ -201,10 +196,10 @@ TENANT_RULES = """- This is the **tenant** app for one client (ADR 0001). It hol
 
 
 def claude_md(app: str, cfg: dict) -> str:
-    title = app.replace("_", " ").title()
-    requires = ", ".join(f"`{a}`" for a in cfg["requires"]) or "`frappe` only"
-    rules = GENERIC_RULES if cfg["kind"] == "generic" else TENANT_RULES
-    return f"""# {app}
+	title = app.replace("_", " ").title()
+	requires = ", ".join(f"`{a}`" for a in cfg["requires"]) or "`frappe` only"
+	rules = GENERIC_RULES if cfg["kind"] == "generic" else TENANT_RULES
+	return f"""# {app}
 
 {title}: a Frappe app for ERPNext {FRAPPE_BRANCH[-2:]} by Bangicode SARL. Part of the MaroneERP white-label build (Linear project MaroneERP, team CHW).
 
@@ -237,23 +232,19 @@ Tests pass on a `*.localhost` site, fixtures exported, `frappe-reviewer` run on 
 
 
 def main() -> None:
-    for app, cfg in APPS.items():
-        root = APPS_DIR / app
-        if not (root / "pyproject.toml").exists():
-            sys.exit(f"missing app: {root}")
-        set_required_apps(app, cfg["requires"])
-        set_frappe_dependencies(app, cfg["requires"])
-        write(
-            root / ".github" / "workflows" / "ci.yml", ci_workflow(app, cfg["requires"])
-        )
-        write(root / ".github" / "dependabot.yml", DEPENDABOT)
-        write(root / app / "tests" / "__init__.py", "")
-        write(
-            root / app / "tests" / "test_install.py", smoke_test(app, cfg["requires"])
-        )
-        write(root / "CLAUDE.md", claude_md(app, cfg))
-        print(f"applied: {app}")
+	for app, cfg in APPS.items():
+		root = APPS_DIR / app
+		if not (root / "pyproject.toml").exists():
+			sys.exit(f"missing app: {root}")
+		set_required_apps(app, cfg["requires"])
+		set_frappe_dependencies(app, cfg["requires"])
+		write(root / ".github" / "workflows" / "ci.yml", ci_workflow(app, cfg["requires"]))
+		write(root / ".github" / "dependabot.yml", DEPENDABOT)
+		write(root / app / "tests" / "__init__.py", "")
+		write(root / app / "tests" / "test_install.py", smoke_test(app, cfg["requires"]))
+		write(root / "CLAUDE.md", claude_md(app, cfg))
+		print(f"applied: {app}")
 
 
 if __name__ == "__main__":
-    main()
+	main()

@@ -79,7 +79,9 @@ new_site() {
 new_site generic.localhost erpnext "${GENERIC_APPS[@]}"
 new_site marone.localhost erpnext "${GENERIC_APPS[@]}" "$TENANT_APP"
 
-bench use marone.localhost
+# No default site: with one set, `bench serve` answers every Host with that site.
+# Always pass --site to bench commands.
+bench config remove-common-config default_site 2>/dev/null || true
 echo ">> done. Start the server with: bench start"
 bench --site generic.localhost list-apps
 bench --site marone.localhost list-apps
