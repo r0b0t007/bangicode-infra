@@ -1,0 +1,57 @@
+# Local development stack for the Bangicode Frappe apps (CHW-86).
+# Based on frappe_docker devcontainer-example (frappe/frappe_docker@ce862c7).
+#
+# The bench lives in the "bench" volume (fast, Linux filesystem).
+# The custom apps live on the host in ../../apps and are soft-linked into the bench.
+#
+# Start:   ./dev/up.sh            (from bangicode-infra/)
+# Shell:   docker compose -f dev/compose.yml exec frappe bash
+
+name: bangicode-dev
+
+services:
+  mariadb:
+    image: docker.io/mariadb:11.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-dev-root}
+      MARIADB_AUTO_UPGRADE: 1
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 20
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  redis-cache:
+    image: docker.io/redis:8-alpine
+
+  redis-queue:
+    image: docker.io/redis:8-alpine
+
+  frappe:
+    # Pinned 2026-10-23: Python 3.14.9, Node 24.22.1, bench 5.31.0. Update deliberately.
+    image: docker.io/frappe/bench@sha256:e90de56f909709498ac4fde9b2a994fa95905cd8f6306f42db2cea006fe615ad
+    command: sleep infinity
+    environment:
+      SHELL: /bin/bash
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-dev-root}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"   # web: http://marone.localhost:8000, http://generic.localhost:8000
+      - "127.0.0.1:9000:9000"   # socketio
+    volumes:
+      - bench:/home/frappe/benches
+      - ../../apps:/workspace/apps
+      - ./scripts:/workspace/scripts:ro
+    working_dir: /home/frappe/benches
+
+volumes:
+  mariadb-data:
+  bench:
